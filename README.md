@@ -4,7 +4,7 @@ VuiAdmin is a free and open-source admin dashboard template built on **Next.js a
 [VILIHA](https://viliha.com). Nineteen screens, MIT licensed, on the same design system as the paid
 editions — so what you evaluate here is what you build with.
 
-This is the **Next.js** edition: App Router, server components by default, `next start` in production.
+This is the **Next.js** edition: App Router, server components by default, prerendered to static HTML.
 Every screen renders from fixtures in its own file, so you can open one, read it top to bottom, and see
 exactly where your data goes.
 
@@ -50,7 +50,7 @@ The dev server listens on [http://localhost:3000](http://localhost:3000).
 | --------------------- | --------------------------------------------------- |
 | `npm run dev`         | Next dev server on port 3000                        |
 | `npm run build`       | Production build                                    |
-| `npm start`           | Production server on port 3000 (run `build` first)  |
+| `npm start`           | Serve the exported `out/` on port 3000 (run `build` first) |
 | `npm run check-types` | `tsc --noEmit`                                      |
 | `npm test`            | Route tree, sidebar and fixture checks (`vitest`)   |
 
@@ -108,8 +108,11 @@ happens to live inside `app/`:
   resort for the root layout itself throwing, which `error.tsx` cannot catch.
 * **`not-found.tsx`** for unmatched addresses, sharing one component with the `/error-404` route the
   sidebar links to on purpose.
-* **`next/image`** (imported as `NextImage`) for the logo and the photograph gallery, so the optimiser
-  serves the size and format each browser asks for and the layout reserves the space first.
+* **`next/image`** (imported as `NextImage`) for the logo and the photograph gallery. A static export
+  has no route handlers, so the optimiser cannot run and `images.unoptimized` is required — the
+  components keep what it was wrapping (`width`/`height` reserving the layout, `loading` deferring what
+  is below the fold, `sizes` letting the browser choose) and lose only the resizing. The gallery
+  originals are 252px wide, so there was little to resize.
 * **`next/link`** (as `NextLink`) for every internal navigation, injected into the design system's shell
   as a prop — the component package has no framework router of its own, and must not gain one.
 * **`next/font`** self-hosts Outfit at build time, so there is no third-party font request and the demo
@@ -121,18 +124,33 @@ happens to live inside `app/`:
 
 ## Deploying
 
-`npm run build`, then `npm start`. This is a **server-rendered** app, so it needs a host that runs Node
-— Vercel, a container, or any Node process behind a proxy. It is not a folder of static files, so
-GitHub Pages and other static-only hosts cannot serve it.
+`npm run build` writes `out/`: a folder of static HTML, one file per route, with no Node process behind
+it. `npm start` serves it locally. Upload it anywhere.
 
-[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) type-checks, tests and builds every push and
-pull request. It deliberately does not deploy: the host's git integration does that, and a workflow
-that also published would be a second deploy racing the first. What CI adds is the one thing a git
-integration does not — the ability to fail a commit. A host builds and publishes whatever it is handed.
+This repository publishes itself.
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) type-checks, tests and builds on every
+push to `main`, then deploys to GitHub Pages at [nextjs.viliha.com](https://nextjs.viliha.com). A pull
+request runs the same checks and stops before the deploy.
 
-If you would rather have a static site, this app exports to one: add `output: "export"` to
-`next.config.ts`. You lose the image optimiser and gain an `out/` you can put on any static host,
-which is what the [React edition](https://github.com/myviliha/free-reactjs-admin-dashboard) does.
+Two files in `public/` are load-bearing and ship inside the build rather than being set once in the
+repository settings:
+
+* **`CNAME`** carries the custom domain. Pages re-reads it on every deploy, so a build without it
+  drops the domain.
+* **`.nojekyll`** stops Pages ignoring `_next/`, which it otherwise would for beginning with an
+  underscore — that failure serves the HTML with none of its CSS or JavaScript.
+
+`basePath` is not set, which is correct for a domain of its own. Serving from a
+`<user>.github.io/<repo>` URL instead needs `basePath: "/<repo>"` in `next.config.ts`, so the asset
+URLs carry the subdirectory.
+
+Deep links need no configuration: the export writes `alerts.html` beside `index.html` for every route,
+so `/alerts` is a real file, and `not-found.tsx` becomes the `404.html` Pages serves for anything
+unmatched.
+
+If you would rather run this on a Node host — Vercel, a container — remove `output: "export"` and
+`images: { unoptimized: true }` from `next.config.ts`. You get the image optimiser back and `npm start`
+becomes `next start`.
 
 ## What's in it
 
@@ -175,6 +193,9 @@ app/
   error-404/          the 404 the sidebar links to on purpose
   dashboard/          the dashboard's cards, charts and map
   globals.css         Tailwind plus the design system's tokens
+public/
+  CNAME               the custom domain, read by Pages on every deploy
+  .nojekyll           stops Pages dropping _next/ for its leading underscore
 packages/
   vui-core/           framework-free half: tokens, class strings, fixtures, the route list
   vui-react/          the React components

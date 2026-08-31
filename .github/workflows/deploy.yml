@@ -1,0 +1,80 @@
+# Build the demo and publish it to GitHub Pages at https://nextjs.viliha.com.
+#
+# **The checks run before the deploy, in the same job.** A demo is the thing a buyer opens to decide
+# whether the parity claim is true, so a screen that throws on mount must not reach the domain:
+# `check-types` catches a bad import that would still bundle, and `test` holds the route tree against
+# the sidebar and the shared route list. One job rather than two, because splitting them would mean
+# installing and building twice for no isolation worth having.
+#
+# A pull request runs the same checks and stops there. `main` deploys.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # So a deploy can be re-run from the Actions tab without an empty commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  # Pages authenticates the artifact upload with OIDC rather than a token.
+  id-token: write
+
+# One deploy at a time, and the newest wins. `cancel-in-progress: false` because cancelling a
+# half-finished deploy is how a site ends up serving one build's HTML with another's assets.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` and not `npm install`: the lockfile is committed, and a deploy that resolves its own
+      # dependency versions is a deploy that can differ from the one that was tested.
+      - run: npm ci
+
+      - run: npm run check-types
+
+      - run: npm test
+
+      # `output: "export"` in next.config.ts, so this writes `out/` rather than starting a server.
+      - run: npm run build
+        env:
+          # Not secret — `NEXT_PUBLIC_*` is inlined into the browser bundle by definition. Set here so
+          # the build exercises the configured path rather than only the fallbacks in `footer.tsx`.
+          NEXT_PUBLIC_SITE_NAME: VILIHA
+          NEXT_PUBLIC_SITE_URL: https://viliha.com
+
+      # Everything below is the deploy, and a pull request skips it: a PR must not be able to publish.
+      - if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+        with:
+          # Creates the Pages site and sets its source to GitHub Actions on the first run. Without it
+          # the step fails with `Get Pages site failed ... Not Found`, because the action only *reads*
+          # the configuration and a repository where nobody opened Settings -> Pages has none.
+          enablement: true
+
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # `public/CNAME` and `public/.nojekyll` are copied into here by the export, and both have to
+          # ship with the build: Pages re-reads the domain on every deploy, and without `.nojekyll` it
+          # would drop `_next/` for beginning with an underscore.
+          path: out
+
+      - id: deploy
+        if: github.event_name != 'pull_request'
+        uses: actions/deploy-pages@v4

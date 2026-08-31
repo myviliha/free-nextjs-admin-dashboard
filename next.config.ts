@@ -3,27 +3,34 @@ import type { NextConfig } from "next";
 /**
  * The free edition's Next.js demo: nineteen screens on the same design system as the paid editions.
  *
+ * **A static export, served from GitHub Pages at nextjs.viliha.com.** `next build` writes `out/`, a
+ * folder of HTML with no Node process behind it, which is the whole of what Pages can serve. The
+ * alternative was `next start` on a host that runs Node, and for this app it buys nothing: every
+ * screen renders from fixtures in its own file, so there is no request-time work to do.
+ *
+ * **`images.unoptimized` is not a preference, it is the consequence.** `next/image`'s optimiser is a
+ * route handler, and a static export has no routes to handle: without this the build fails and names
+ * this setting. The components keep everything else the optimiser was wrapping — `width`/`height` so
+ * the layout reserves space, `loading` so below-the-fold photographs are deferred, `sizes` so the
+ * browser picks — and lose only the resizing and the WebP conversion. The five gallery photographs are
+ * 252px wide originals, so there was little to resize.
+ *
  * **`next.config.ts`, not `.js`.** Next has typed its own config since 15, and the `.js` file this
  * replaced had to be reparsed as an ES module on every build because it used `import` without the
  * package declaring `"type": "module"`. Typed config also means a misspelled key is an error here
  * rather than a setting that silently does nothing.
  *
- * **A server-rendered app, and it used to be a static export.** `output: "export"` was here because
- * the demo was served out of the storefront's `public/` directory, which also forced
- * `basePath: "/preview/free-react"` and `images: { unoptimized: true }`: three settings that existed
- * for where the app was hosted rather than for anything the app does. This repository is the app on
- * its own domain, so all three are gone, `next start` serves it, and `next/image` optimises the five
- * photographs and the logo instead of passing them through.
+ * **No `basePath`.** The export used to carry `/preview/free-react`, because it was served out of a
+ * marketing site's `public/` directory. It has its own domain now, so the app sits at the root and
+ * every internal href is already correct. A `<user>.github.io/<repo>` URL would need it back.
  *
- * **`turbopack.root` is the one thing left, and it is this directory.** The version of this pin that
- * used to sit here pointed three levels up, at a monorepo root, and `outputFileTracingRoot` came with
- * it. Neither is right any more — but the pin is still needed, because `packages/vui-core` and
- * `packages/vui-react` are vendored here as `file:` dependencies and Next reads that layout as a
- * workspace it should look above. It warns rather than guessing quietly, which is the right call and
- * is what this answers: the root is the repository, and it is the repository whichever machine the
- * clone is on.
+ * **`turbopack.root` is pinned at this directory.** `packages/vui-core` and `packages/vui-react` are
+ * vendored here as `file:` dependencies, and Next reads that layout as a workspace it should look
+ * above; it warns rather than guessing quietly, which is the right call and is what this answers.
  */
 const nextConfig: NextConfig = {
+  output: "export",
+  images: { unoptimized: true },
   turbopack: { root: import.meta.dirname },
 };
 
