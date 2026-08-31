@@ -1,0 +1,8 @@
+node_modules/
+# Anchored, all three: an unanchored rule matches a directory of that name at any depth, and the
+# vendored `packages/vui-core/dist` is the whole of that package's published output.
+/.next/
+/out/
+*.tsbuildinfo
+.env*.local
+.DS_Store
