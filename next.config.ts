@@ -30,6 +30,13 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   output: "export",
+  // `@viliha/vui-*` ship TypeScript source rather than a build, so the bundler has to compile them.
+  // This worked without the setting under npm by accident: npm symlinks a `file:` dependency back to
+  // `packages/`, which is inside `turbopack.root`, so Turbopack treated it as project source. pnpm
+  // copies the dependency into its store instead, the real path lands under `node_modules`, and the
+  // build failed with "Unknown module type" on all 26 `.tsx` files. Naming the packages is what the
+  // design system's own documentation asks for, and it is correct under every package manager.
+  transpilePackages: ["@viliha/vui-core", "@viliha/vui-react"],
   images: { unoptimized: true },
   turbopack: { root: import.meta.dirname },
 };
